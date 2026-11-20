@@ -23,6 +23,7 @@ import { secureWorkDirectoryAsync } from '../src/work-files.mjs'
 
 const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const HOOK_SCRIPT = join(REPO_ROOT, 'src', 'hook.mjs')
+const BIN_SCRIPT = join(REPO_ROOT, 'bin', 'agy-piggy.mjs')
 const ALLOWED_PLUGIN_KEYS = new Set([
   'name',
   'displayName',
@@ -37,7 +38,7 @@ const ALLOWED_PLUGIN_KEYS = new Set([
 ])
 
 function checkSyntax() {
-  const dirs = [join(REPO_ROOT, 'src'), join(REPO_ROOT, 'scripts')]
+  const dirs = [join(REPO_ROOT, 'src'), join(REPO_ROOT, 'bin'), join(REPO_ROOT, 'scripts')]
   let checked = 0
   for (const dir of dirs) {
     for (const file of readdirSync(dir)) {
@@ -46,6 +47,9 @@ function checkSyntax() {
       checked++
     }
   }
+  const binText = readFileSync(BIN_SCRIPT, 'utf8')
+  assert.ok(binText.startsWith('#!/usr/bin/env node\n'), 'bin/agy-piggy.mjs 必须以 LF shebang 开头')
+  assert.equal(binText.includes('\r\n'), false, 'bin/agy-piggy.mjs 不能包含 CRLF 换行')
   return checked
 }
 
@@ -402,6 +406,17 @@ async function runIntegration() {
     await waitForFlushIdle(dataDir)
     const remainingFiles = readdirSync(eventsDir).filter(f => f.endsWith('.json'))
     assert.deepEqual(remainingFiles, [`${expiredId}.json`], '过期事件应保留现场，有效事件应补投清除')
+
+    // 4. 验证 CLI 安装器自定义目录安装与卸载隔离
+    const customTarget = join(root, 'custom-install')
+    execFileSync(process.execPath, [BIN_SCRIPT, `--target=${customTarget}`], { encoding: 'utf8' })
+    assert.ok(existsSync(join(customTarget, 'plugin.json')), '安装后应存在 plugin.json')
+    assert.ok(existsSync(join(customTarget, 'hooks.json')), '安装后应存在 hooks.json')
+    assert.ok(existsSync(join(customTarget, 'src', 'hook.mjs')), '安装后应存在 src/hook.mjs')
+    assert.equal(existsSync(join(customTarget, 'package.json')), false, '安装目录不应包含 package.json')
+    assert.equal(existsSync(join(customTarget, 'scripts')), false, '安装目录不应包含 scripts')
+    execFileSync(process.execPath, [BIN_SCRIPT, '--uninstall', `--target=${customTarget}`], { encoding: 'utf8' })
+    assert.equal(existsSync(customTarget), false, '卸载后安装目录应已清理')
   } finally {
     await server.close()
     rmSync(root, { recursive: true, force: true })

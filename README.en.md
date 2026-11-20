@@ -10,22 +10,30 @@ The plugin uses Antigravity's native `hooks.json` to observe user prompts, tool 
 |---|---|
 | Node.js | 22.0 or later (available in `PATH`) |
 | dsh-piggy | Supports work-event protocol v1, with external connections enabled or launched with `--work-events` |
-| Plugin version | 0.1.0 |
+| Plugin version | 0.1.1 |
 
 ## Quick start
 
 ### 1. Install the plugin
 
-Clone the repository and install with the Antigravity CLI:
+Install the latest stable release from npm in one command:
+
+```sh
+npx agy-piggy@latest
+```
+
+The installer pulls the package and invokes your local `agy plugin install` to register and enable the plugin (falling back to a managed copy at `~/.gemini/config/plugins/agy-piggy` if the `agy` CLI is unavailable). To pin a version, run `npx agy-piggy@0.1.1`.
+
+Without npm, clone the repository and install with the Antigravity CLI:
 
 ```sh
 git clone https://github.com/WolalaQAQ/agy-piggy.git
 agy plugin install ./agy-piggy
 ```
 
-You can also download the `.zip` or `.tgz` archive from [Releases](https://github.com/WolalaQAQ/agy-piggy/releases), extract it, and run `agy plugin install ./agy-piggy`. In environments without the `agy` CLI, run `node scripts/install-agy.mjs --copy` from the repository directory to copy the plugin into `~/.gemini/config/plugins/agy-piggy`.
+You can also download `.zip` or `.tgz` archives from [Releases](https://github.com/WolalaQAQ/agy-piggy/releases): extract `.zip` and run `agy plugin install ./agy-piggy`, or extract `.tgz` and run `node ./package/bin/agy-piggy.mjs`.
 
-To uninstall while preserving your event queue in `PLUGIN_DATA`, run `agy plugin uninstall agy-piggy` (or `node scripts/install-agy.mjs --uninstall`).
+To uninstall while preserving your event queue in `PLUGIN_DATA`, run `agy plugin uninstall agy-piggy` or `npx agy-piggy@latest --uninstall`.
 
 ### 2. Enable the game's work-event API
 

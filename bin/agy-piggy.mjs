@@ -1,20 +1,22 @@
+#!/usr/bin/env node
 // @ts-check
-/** 安装或卸载 agy-piggy 到 Antigravity 全局插件目录；优先使用原生 agy plugin CLI。 */
+/** 安装或卸载 agy-piggy 到 Antigravity 全局插件目录；优先暂存纯净插件目录后调用原生 agy plugin install。 */
 import { spawnSync } from 'node:child_process'
 import {
   cpSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  mkdtempSync,
   rmdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs'
-import { homedir } from 'node:os'
+import { homedir, tmpdir } from 'node:os'
 import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const MANAGED_MARKER = '.agy-piggy-managed'
 const RUNTIME_ITEMS = [
   'plugin.json',
@@ -46,7 +48,7 @@ function removeSymlinkOrJunction(target) {
   }
 }
 
-/** @param {string} target */
+/** @param {string} target @param {boolean} [allowUnmanaged] */
 function removeExistingManagedTarget(target, allowUnmanaged = false) {
   let stat
   try {
@@ -71,11 +73,25 @@ function removeExistingManagedTarget(target, allowUnmanaged = false) {
 function copyRuntimeBundle(target) {
   mkdirSync(target, { recursive: true })
   for (const item of RUNTIME_ITEMS) {
-    const src = join(REPO_ROOT, item)
+    const src = join(PACKAGE_ROOT, item)
     if (!existsSync(src)) continue
     cpSync(src, join(target, item), { recursive: true })
   }
-  writeFileSync(join(target, MANAGED_MARKER), 'agy-piggy-managed-v1\n', 'utf8')
+}
+
+function installViaNativeCli() {
+  const stageBase = mkdtempSync(join(tmpdir(), 'agy-piggy-stage-'))
+  try {
+    const stagePluginDir = join(stageBase, 'agy-piggy')
+    copyRuntimeBundle(stagePluginDir)
+    const res = spawnSync('agy', ['plugin', 'install', stagePluginDir], {
+      encoding: 'utf8',
+      windowsHide: true,
+    })
+    return res.status === 0
+  } finally {
+    rmSync(stageBase, { recursive: true, force: true })
+  }
 }
 
 /** @param {{target?: string, copy?: boolean, uninstall?: boolean}} [options] */
@@ -98,11 +114,7 @@ export function installAgy(options = {}) {
 
   if (useNativeCli && !options.copy) {
     removeExistingManagedTarget(target, true)
-    const res = spawnSync('agy', ['plugin', 'install', REPO_ROOT], {
-      encoding: 'utf8',
-      windowsHide: true,
-    })
-    if (res.status === 0) {
+    if (installViaNativeCli()) {
       return { mode: 'agy-cli', target }
     }
   }
@@ -110,7 +122,20 @@ export function installAgy(options = {}) {
   removeExistingManagedTarget(target)
   mkdirSync(dirname(target), { recursive: true })
   copyRuntimeBundle(target)
+  writeFileSync(join(target, MANAGED_MARKER), 'agy-piggy-managed-v1\n', 'utf8')
   return { mode: 'copy', target }
+}
+
+function printHelp() {
+  console.log([
+    '用法：npx agy-piggy@latest [install|uninstall] [选项]',
+    '',
+    '选项：',
+    '  --uninstall        卸载插件入口（保留 PLUGIN_DATA 事件队列）',
+    '  --copy             强制使用托管复制模式安装，不调用 agy plugin install',
+    '  --target=<绝对路径> 指定自定义安装目录（自动使用托管复制模式）',
+    '  -h, --help         显示帮助信息',
+  ].join('\n'))
 }
 
 function main() {
@@ -119,10 +144,17 @@ function main() {
   let uninstall = false
   let target
   for (const arg of args) {
-    if (arg === '--copy') {
-      copy = true
-    } else if (arg === '--uninstall') {
+    if (arg === '--help' || arg === '-h') {
+      printHelp()
+      return
+    }
+    if (arg === 'install') {
+      continue
+    }
+    if (arg === 'uninstall' || arg === '--uninstall') {
       uninstall = true
+    } else if (arg === '--copy') {
+      copy = true
     } else if (arg.startsWith('--target=')) {
       const value = arg.slice('--target='.length).trim()
       if (!value || !isAbsolute(value)) throw new Error(`--target 必须为绝对路径：${value}`)

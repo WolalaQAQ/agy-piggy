@@ -10,22 +10,30 @@ AGY Piggy 是一个自包含的 Antigravity 插件，让 [dsh-piggy](https://git
 |---|---|
 | Node.js | 22.0 或以上（需在 `PATH` 中） |
 | dsh-piggy | 支持工作事件协议 v1，启用「外部连接」或以 `--work-events` 启动 |
-| 插件版本 | 0.1.0 |
+| 插件版本 | 0.1.1 |
 
 ## 快速开始
 
 ### 1. 安装插件
 
-克隆仓库并使用 Antigravity 原生 CLI 安装：
+从 npm 一键安装最新正式版：
+
+```sh
+npx agy-piggy@latest
+```
+
+命令会拉取插件并自动调用本机 `agy plugin install` 完成注册与启用（无 `agy` CLI 时自动回退托管复制到 `~/.gemini/config/plugins/agy-piggy`）。固定版本可使用 `npx agy-piggy@0.1.1`。
+
+不使用 npm 时，可以克隆仓库后通过 Antigravity CLI 安装：
 
 ```sh
 git clone https://github.com/WolalaQAQ/agy-piggy.git
 agy plugin install ./agy-piggy
 ```
 
-或从 [Releases](https://github.com/WolalaQAQ/agy-piggy/releases) 下载 `.zip` / `.tgz` 离线归档并解压后执行 `agy plugin install ./agy-piggy`。无 `agy` CLI 的环境可进入仓库目录运行 `node scripts/install-agy.mjs --copy`（将插件复制到 `~/.gemini/config/plugins/agy-piggy`）。
+或从 [Releases](https://github.com/WolalaQAQ/agy-piggy/releases) 下载 `.zip` / `.tgz` 离线归档：`.zip` 解压后执行 `agy plugin install ./agy-piggy`，`.tgz` 解压后执行 `node ./package/bin/agy-piggy.mjs`。
 
-卸载插件使用 `agy plugin uninstall agy-piggy`（或 `node scripts/install-agy.mjs --uninstall`），已保存的事件队列保留在 `PLUGIN_DATA` 中。
+卸载插件使用 `agy plugin uninstall agy-piggy` 或 `npx agy-piggy@latest --uninstall`，已保存的事件队列保留在 `PLUGIN_DATA` 中。
 
 ### 2. 开启桌宠工作事件接口
 

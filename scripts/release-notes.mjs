@@ -35,6 +35,8 @@ function main() {
   const chinese = changelogSection('CHANGELOG.md', version)
   const english = changelogSection('CHANGELOG.en.md', version)
   const baseName = `${plugin.name}-${version}`
+  const channel = version.includes('-') ? 'next' : 'latest'
+  const installCmd = `npx ${plugin.name}@${channel}`
   const downloads = ['zip', 'tgz']
     .map(ext => {
       const fileName = `${baseName}.${ext}`
@@ -50,15 +52,14 @@ function main() {
     '### 安装',
     '',
     '```sh',
-    `git clone ${REPOSITORY_URL}.git`,
-    'agy plugin install ./agy-piggy',
+    installCmd,
     '```',
     '',
     '### 离线归档',
     '',
     downloads,
     '',
-    `下载任一归档解压后，执行 \`agy plugin install ./agy-piggy\` 即可安装。游戏要求与可选配置见 [README](${REPOSITORY_URL}/blob/${tag}/README.md)。`,
+    `下载 \`.zip\` 解压后执行 \`agy plugin install ./agy-piggy\`；下载 \`.tgz\` 解压后执行 \`node ./package/bin/agy-piggy.mjs\`（或 \`agy plugin install ./package\`）。游戏要求与可选配置见 [README](${REPOSITORY_URL}/blob/${tag}/README.md)。`,
     '',
     '---',
     '',
@@ -69,15 +70,14 @@ function main() {
     '### Install',
     '',
     '```sh',
-    `git clone ${REPOSITORY_URL}.git`,
-    'agy plugin install ./agy-piggy',
+    installCmd,
     '```',
     '',
     '### Offline archives',
     '',
     downloads,
     '',
-    `Extract either archive and run \`agy plugin install ./agy-piggy\`. See the [README](${REPOSITORY_URL}/blob/${tag}/README.en.md) for game requirements and optional configuration.`,
+    `Extract the \`.zip\` archive and run \`agy plugin install ./agy-piggy\`, or extract the \`.tgz\` archive and run \`node ./package/bin/agy-piggy.mjs\` (or \`agy plugin install ./package\`). See the [README](${REPOSITORY_URL}/blob/${tag}/README.en.md) for game requirements and optional configuration.`,
   ].join('\n')
 
   if (outputPath) {

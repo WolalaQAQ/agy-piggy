@@ -1,7 +1,7 @@
 {
   "name": "agy-piggy",
   "displayName": "Piggy Work Events",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "将 Antigravity 的真实对话、工具调用与回合事件静默投递至本机 dsh-piggy 桌宠，零上下文占用。",
   "author": {
     "name": "WolalaQAQ",

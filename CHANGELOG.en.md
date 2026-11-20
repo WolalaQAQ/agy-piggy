@@ -2,6 +2,20 @@
 
 [中文](CHANGELOG.md) | English
 
+## [0.1.1] - 2026-11-21
+
+### Features
+- Added npm package distribution with a one-command `npx agy-piggy@latest` installer (`bin/agy-piggy.mjs`), supporting installation, upgrades and `--uninstall`.
+- Updated the installer to stage a clean `agy-piggy/` directory containing only runtime files before invoking `agy plugin install`, keeping `.git`, `dist`, development scripts and npm metadata out of the global plugins directory.
+- Updated `npm run pack:plugin` so the `.tgz` archive uses the standard npm top-level `package/` layout (with a public `package.json` stripped of `"private"` and dev scripts, plus an LF/0755 `bin` entry), matching the exact tarball published to npm; `.zip` remains a standalone plugin bundle.
+
+### Design Rationale
+- Because `agy plugin install` does not fetch packages directly from npm, shipping a lightweight `bin` wrapper that stages a clean runtime bundle gives users the same one-line `npx agy-piggy@latest` experience.
+
+### Notes & Caveats
+- Upgrading from `0.1.0` with `npx agy-piggy@latest` replaces the installed plugin in place while preserving your outbox queue.
+- Publish only the generated `dist/agy-piggy-0.1.1.tgz` tarball; the repository root keeps `"private": true`.
+
 ## [0.1.0] - 2026-11-21
 
 ### Features

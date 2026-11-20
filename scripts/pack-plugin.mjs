@@ -1,8 +1,8 @@
 // @ts-check
-/** 按运行时白名单生成自包含的 tgz 与 zip 发布包，并用 agy CLI 校验归档。 */
+/** 生成 npm 标准包（.tgz）与纯插件归档（.zip），并用 agy CLI 严格校验。 */
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -29,6 +29,43 @@ function archive(args) {
   if (run.status !== 0) throw new Error(`归档失败：${tar}，退出码 ${run.status}`)
 }
 
+/** @param {Record<string, any>} rootPkg */
+function buildPublicPackageJson(rootPkg) {
+  const pub = {
+    name: rootPkg.name,
+    version: rootPkg.version,
+    description: rootPkg.description,
+    type: rootPkg.type,
+    license: rootPkg.license,
+    author: rootPkg.author,
+    bin: rootPkg.bin,
+    files: [...RUNTIME_ITEMS, 'bin'],
+    publishConfig: {
+      access: 'public',
+      registry: 'https://registry.npmjs.org',
+    },
+    repository: rootPkg.repository,
+    homepage: rootPkg.homepage,
+    bugs: rootPkg.bugs,
+    keywords: rootPkg.keywords,
+    engines: rootPkg.engines,
+  }
+  return `${JSON.stringify(pub, null, 2)}\n`
+}
+
+/** @param {string} target */
+function validateWithAgy(target) {
+  const validate = spawnSync('agy', ['plugin', 'validate', target, '--strict', '--json'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  })
+  if (validate.status !== 0) {
+    throw new Error(`agy plugin validate 校验失败（${target}）：${validate.stdout || validate.stderr}`)
+  }
+  const report = JSON.parse(validate.stdout)
+  assert.deepEqual(report.findings ?? [], [], `归档存在 validate 发现项：${validate.stdout}`)
+}
+
 function main() {
   const pkg = JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8'))
   const plugin = JSON.parse(readFileSync(join(REPO_ROOT, 'plugin.json'), 'utf8'))
@@ -43,29 +80,35 @@ function main() {
 
   const stageBase = mkdtempSync(join(tmpdir(), 'agy-piggy-pack-'))
   try {
-    const packageDir = join(stageBase, 'agy-piggy')
-    mkdirSync(packageDir, { recursive: true })
+    // 1. npm 发布包暂存目录（stage/package/）
+    const npmPkgDir = join(stageBase, 'package')
+    mkdirSync(join(npmPkgDir, 'bin'), { recursive: true })
     for (const item of RUNTIME_ITEMS) {
-      cpSync(join(REPO_ROOT, item), join(packageDir, item), { recursive: true })
+      cpSync(join(REPO_ROOT, item), join(npmPkgDir, item), { recursive: true })
+    }
+    const binSource = readFileSync(join(REPO_ROOT, 'bin', 'agy-piggy.mjs'), 'utf8').replace(/\r\n/g, '\n')
+    const binTarget = join(npmPkgDir, 'bin', 'agy-piggy.mjs')
+    writeFileSync(binTarget, binSource, 'utf8')
+    chmodSync(binTarget, 0o755)
+    writeFileSync(join(npmPkgDir, 'package.json'), buildPublicPackageJson(pkg), 'utf8')
+
+    // 2. 纯插件 ZIP 暂存目录（stage/agy-piggy/）
+    const zipPluginDir = join(stageBase, 'agy-piggy')
+    mkdirSync(zipPluginDir, { recursive: true })
+    for (const item of RUNTIME_ITEMS) {
+      cpSync(join(REPO_ROOT, item), join(zipPluginDir, item), { recursive: true })
     }
 
     const baseName = `${plugin.name}-${plugin.version}`
     const stageTgz = join(stageBase, `${baseName}.tgz`)
     const stageZip = join(stageBase, `${baseName}.zip`)
-    archive(['-c', '--format=ustar', '-z', '-f', stageTgz, '-C', stageBase, 'agy-piggy'])
+    archive(['-c', '--format=ustar', '-z', '-f', stageTgz, '-C', stageBase, 'package'])
     archive(['-c', '--format=zip', '-f', stageZip, '-C', stageBase, 'agy-piggy'])
 
     const agyProbe = spawnSync('agy', ['--version'], { encoding: 'utf8', windowsHide: true })
     if (!agyProbe.error || agyProbe.error.code !== 'ENOENT') {
-      const validate = spawnSync('agy', ['plugin', 'validate', stageZip, '--strict', '--json'], {
-        encoding: 'utf8',
-        windowsHide: true,
-      })
-      if (validate.status !== 0) {
-        throw new Error(`agy plugin validate 校验归档失败：${validate.stdout || validate.stderr}`)
-      }
-      const report = JSON.parse(validate.stdout)
-      assert.deepEqual(report.findings ?? [], [], `归档包存在 validate 发现项：${validate.stdout}`)
+      validateWithAgy(stageZip)
+      validateWithAgy(npmPkgDir)
     }
 
     const distDir = join(REPO_ROOT, 'dist')
