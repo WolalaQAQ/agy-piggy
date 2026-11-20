@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 已存在的版本标签（与 package.json 一致）
+        required: true
+        type: string
+      draft:
+        description: 仅生成草稿，暂不公开 Release
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  plugin:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      KEEP_DRAFT: ${{ github.event_name == 'workflow_dispatch' && inputs.draft }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: 读取版本标签
+        uses: actions/checkout@v5
+        with:
+          ref: refs/tags/${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+
+      - name: 准备 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 运行插件检查
+        run: |
+          npm run check
+          if ($LASTEXITCODE -ne 0) { throw '插件检查失败' }
+
+      - name: 打包自包含插件
+        run: |
+          npm run pack:plugin
+          if ($LASTEXITCODE -ne 0) { throw '插件打包失败' }
+
+      - name: 验证版本并生成发布说明
+        run: |
+          node scripts/release-notes.mjs "$env:RELEASE_TAG" "--output=$env:RUNNER_TEMP/release-notes.md"
+          if ($LASTEXITCODE -ne 0) { throw '发布版本检查失败' }
+
+      - name: 创建或继续草稿 Release
+        run: |
+          $prerelease = $env:RELEASE_TAG.Contains('-').ToString().ToLowerInvariant()
+          $json = gh release view "$env:RELEASE_TAG" --json isDraft
+          if ($LASTEXITCODE -eq 0) {
+            if (-not ($json | ConvertFrom-Json).isDraft) { throw '此版本已公开，请使用新的版本标签' }
+            gh release edit "$env:RELEASE_TAG" --title "AGY Piggy $env:RELEASE_TAG" --notes-file "$env:RUNNER_TEMP/release-notes.md" "--prerelease=$prerelease"
+          } else {
+            gh release create "$env:RELEASE_TAG" --title "AGY Piggy $env:RELEASE_TAG" --notes-file "$env:RUNNER_TEMP/release-notes.md" --draft --verify-tag "--prerelease=$prerelease"
+          }
+          if ($LASTEXITCODE -ne 0) { throw '草稿 Release 准备失败' }
+
+      - name: 上传插件归档
+        run: |
+          $plugin = Get-Content plugin.json -Raw -Encoding utf8 | ConvertFrom-Json
+          $base = "dist/$($plugin.name)-$($plugin.version)"
+          $tgz = "$base.tgz"
+          $zip = "$base.zip"
+          if (-not (Test-Path -LiteralPath $tgz) -or -not (Test-Path -LiteralPath $zip)) { throw '插件归档不存在' }
+          gh release upload "$env:RELEASE_TAG" $tgz $zip --clobber
+          if ($LASTEXITCODE -ne 0) { throw '插件归档上传失败，Release 保留为草稿' }
+
+      - name: 公开 Release
+        if: env.KEEP_DRAFT != 'true'
+        run: |
+          gh release edit "$env:RELEASE_TAG" --draft=false
+          if ($LASTEXITCODE -ne 0) { throw 'Release 发布失败' }

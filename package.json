@@ -1,0 +1,20 @@
+{
+  "name": "agy-piggy",
+  "version": "0.1.0",
+  "private": true,
+  "description": "自包含 Antigravity 插件，通过官方工作事件 HTTP 接口联动 dsh-piggy",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/WolalaQAQ/agy-piggy.git"
+  },
+  "scripts": {
+    "check": "node scripts/check.mjs",
+    "pack:plugin": "node scripts/pack-plugin.mjs",
+    "install:agy": "node scripts/install-agy.mjs"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}

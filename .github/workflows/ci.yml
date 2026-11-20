@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: ['main']
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - name: 检出源码
+        uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: 安装 Linux 归档工具
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libarchive-tools
+
+      - name: 准备 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 运行检查与闭环测试
+        run: npm run check
+
+      - name: 构建插件发布归档
+        run: npm run pack:plugin
